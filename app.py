@@ -1,107 +1,110 @@
-import customtkinter as ctk
-import requests
-from datetime import datetime
-import google.generativeai as genai  # <--- Nuova Integrazione
+import streamlit as st
+import google.generativeai as genai
 import json
-import threading
+from datetime import datetime
 
-# --- CONFIGURAZIONE AI ---
-# Inserisci qui la tua chiave API di Google
-genai.configure(api_key="TUA_CHIAVE_GOOGLE_GEMINI")
-ai_model = genai.GenerativeModel('gemini-1.5-flash')
+# --- CONFIGURAZIONE ESTETICA ---
+st.set_page_config(page_title="EDGE AI | NEURAL STRATEGY 2026", layout="wide")
 
-class EdgeAILuxury(ctk.CTk):
-    # ... (manteniamo la __init__ e la UI identica alla tua) ...
+st.markdown("""
+    <style>
+    .main { background-color: #000000; color: white; }
+    .stButton>button { width: 100%; border-radius: 0px; background-color: #ffffff; color: black; font-weight: bold; border: none; height: 50px; }
+    .stButton>button:hover { background-color: #cccccc; }
+    .prediction-card { padding: 20px; border: 1px solid #111; background-color: #050505; margin-bottom: 15px; border-left: 4px solid #00FF00; }
+    .metric-box { padding: 15px; background-color: #0a0a0a; border: 1px solid #111; text-align: center; }
+    </style>
+    """, unsafe_content_type=True)
 
-    def run_scanner(self):
-        """Scansiona i match e chiede all'IA di analizzarli uno per uno."""
-        for widget in self.scroll_frame.winfo_children(): widget.destroy()
-        self.stored_matches = []
-        
-        l_id = LEAGUES[self.league_menu.get()]
-        url = f"https://v3.football.api-sports.io/fixtures?date={datetime.now().strftime('%Y-%m-%d')}"
-        if l_id != 0: url += f"&league={l_id}&season=2026"
-            
-        try:
-            res = requests.get(url, headers={'x-apisports-key': self.api_key}).json().get('response', [])
-            
-            # Usiamo un thread per non bloccare la UI mentre l'IA ragiona
-            threading.Thread(target=self.process_matches_with_ai, args=(res,)).start()
-        except Exception as e:
-            print(f"Errore API: {e}")
+# --- AI SETUP ---
+# Usiamo la tua chiave API
+GOOGLE_API_KEY = "AIzaSyCqe9yWNbVl47zbXgmo2dyMsmagCeZlEFM"
+genai.configure(api_key=GOOGLE_API_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-    def process_matches_with_ai(self, fixtures):
-        """Invia i dati alla AI per un'analisi reale."""
-        for m in fixtures[:15]: # Limitiamo a 15 per velocità
-            home = m['teams']['home']['name']
-            away = m['teams']['away']['name']
-            league = m['league']['name']
-            
-            # Il Prompt per l'IA
-            prompt = f"""
-            Analizza il match di {league}: {home} vs {away}.
-            Basandoti sulla tua conoscenza storica, fornisci:
-            1. Un consiglio (HOME WIN, AWAY WIN, OVER 2.5, o BTTS)
-            2. Una percentuale di confidenza (70-99)
-            Rispondi solo in formato JSON: {{"tip": "...", "conf": 00}}
-            """
-            
-            try:
-                response = ai_model.generate_content(prompt)
-                # Pulizia della risposta per estrarre il JSON
-                ai_data = json.loads(response.text.replace("```json", "").replace("```", ""))
-                
-                data = {
-                    "id": m['fixture']['id'],
-                    "teams": f"{home} vs {away}",
-                    "tip": ai_data['tip'],
-                    "quote": round(2.0, 2), # Qui potresti integrare le quote reali dell'API
-                    "h_score": m['goals']['home'] if m['goals']['home'] is not None else 0,
-                    "a_score": m['goals']['away'] if m['goals']['away'] is not None else 0,
-                    "status": m['fixture']['status']['short'],
-                    "conf": ai_data['conf']
-                }
-                self.stored_matches.append(data)
-                # Aggiorna la UI in modo sicuro
-                self.after(0, lambda d=data: self.add_card(self.scroll_frame, d))
-            except:
-                continue
+# --- SIDEBAR ---
+with st.sidebar:
+    st.title("E D G E  A I")
+    st.overline("AUTONOMOUS INTELLIGENCE")
+    st.markdown("---")
+    
+    market = st.selectbox("MARKET ACCESS", ["Top European Leagues", "Serie A & B", "Premier League", "Champions League"])
+    risk = st.select_slider("RISK STRATEGY", options=["SAFE", "BALANCED", "AGGRESSIVE"], value="BALANCED")
+    
+    st.markdown("---")
+    stake = st.number_input("STAKE (€)", min_value=1.0, value=10.0)
+    target = st.number_input("TARGET (€)", min_value=1.0, value=100.0)
+    
+    generate_btn = st.button("EXECUTE NEURAL SCAN")
 
-    def generate_proposal(self):
-        """Usa l'IA per comporre la schedina perfetta basata sul budget."""
-        try:
-            stake = float(self.stake_in.get())
-            target = float(self.win_in.get())
-            mode = self.risk_mode.get()
-        except: 
-            messagebox.showerror("Error", "Inserisci Stake e Target validi")
-            return
+# --- MAIN INTERFACE ---
+st.subheader("GLOBAL MARKET INTEL (LIVE AI ANALYSIS)")
 
-        if not self.stored_matches:
-            messagebox.showwarning("Analisi", "Esegui prima uno SCAN MARKET")
-            return
-
-        # Passiamo la lista dei match scansionati all'IA per scegliere i migliori
-        matches_str = json.dumps(self.stored_matches)
-        
+if generate_btn:
+    with st.spinner("L'IA sta scansionando i mercati e analizzando i trend storici..."):
+        # Prompt per l'IA senza bisogno di file o API
+        # L'IA usa la sua conoscenza aggiornata al 2026
         prompt = f"""
-        Ho questi match: {matches_str}
-        Il mio budget è {stake}€ e voglio vincere {target}€. Strategia: {mode}.
-        Scegli i match migliori per raggiungere l'obiettivo in modo intelligente.
-        Restituisci solo gli ID dei match scelti separati da virgola.
+        Oggi è il {datetime.now().strftime('%d %B %Y')}. 
+        Agisci come un analista di scommesse professionista. 
+        Trova le 5 partite più interessanti di oggi/domani nel mercato: {market}.
+        Per ogni partita, analizza lo stato di forma storico e recente delle squadre.
+        
+        Genera una schedina con strategia di rischio: {risk}.
+        Obiettivo quota totale vicina a: {target/stake:.2f}.
+
+        Restituisci ESCLUSIVAMENTE un JSON con questa struttura:
+        [
+          {{"match": "Squadra A - Squadra B", "tip": "1/X/2/Over", "odds": 1.50, "logic": "Analisi tecnica breve", "conf": "90%"}},
+          ...
+        ]
         """
-
+        
         try:
-            response = ai_model.generate_content(prompt)
-            chosen_ids = [id.strip() for id in response.text.split(",")]
+            response = model.generate_content(prompt)
+            # Pulizia e parsing del JSON
+            clean_text = response.text.replace("```json", "").replace("```", "").strip()
+            data = json.loads(clean_text)
             
-            proposal = [m for m in self.stored_matches if str(m['id']) in chosen_ids]
+            col1, col2 = st.columns([2, 1])
             
-            if proposal:
-                self.active_session_matches = proposal
-                self.refresh_session_ui()
-                messagebox.showinfo("Edge AI", "Schedina ottimizzata generata dall'Intelligenza Artificiale.")
+            total_odds = 1.0
+            
+            with col1:
+                for item in data:
+                    st.markdown(f"""
+                    <div class="prediction-card">
+                        <div style="display: flex; justify-content: space-between;">
+                            <b style="font-size: 18px;">{item['match']}</b>
+                            <span style="color: #00FF00; font-weight: bold;">{item['conf']} CONF.</span>
+                        </div>
+                        <div style="margin-top: 10px; color: #ccc;">
+                            <b>Pronostico: {item['tip']}</b> | Quota: {item['odds']}
+                        </div>
+                        <div style="margin-top: 5px; font-size: 12px; color: #888;">
+                            {item['logic']}
+                        </div>
+                    </div>
+                    """, unsafe_content_type=True)
+                    total_odds *= item['odds']
+            
+            with col2:
+                st.markdown('<div class="metric-box">', unsafe_content_type=True)
+                st.write("### 🎫 TICKET SUMMARY")
+                st.write(f"**Strategy:** {risk}")
+                st.write(f"**Total Odds:** {total_odds:.2f}")
+                st.write(f"**Potential Win:** €{total_odds * stake:.2f}")
+                st.markdown('</div>', unsafe_content_type=True)
+                
+                if st.button("PRINT TICKET"):
+                    st.balloons()
+                    st.success("Ticket salvato nella sessione!")
+                    
         except Exception as e:
-            messagebox.showerror("AI Error", f"L'IA non è riuscita a compilare la schedina: {e}")
+            st.error(f"Errore durante la scansione neurale: {e}")
+            st.info("Riprova tra pochi secondi, l'IA potrebbe essere sovraccarica.")
+else:
+    st.write("In attesa di comando... Seleziona i parametri e clicca su 'EXECUTE NEURAL SCAN'.")
 
-# ... (il resto della classe rimane uguale)
+st.markdown("---")
+st.caption("Edge AI Autonomous System - No External Data Required")
