@@ -6,7 +6,7 @@ from datetime import datetime
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="EDGE AI | NEURAL STRATEGY 2026", layout="wide")
 
-# --- CUSTOM CSS (FIXED) ---
+# --- CUSTOM CSS ---
 st.markdown("""
     <style>
     .main { background-color: #000000; color: white; }
@@ -36,7 +36,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- AI SETUP ---
-# Inserisco la tua chiave direttamente per comodità
+# Usiamo la tua chiave
 GOOGLE_API_KEY = "AIzaSyCqe9yWNbVl47zbXgmo2dyMsmagCeZlEFM"
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -63,14 +63,15 @@ with st.sidebar:
 
 # --- MAIN DISPLAY ---
 st.title("GLOBAL MARKET INTEL")
-st.overline("AI-POWERED AUTONOMOUS ANALYSIS")
+# FIX: Sostituito st.overline (che non esiste) con st.write + stile bold
+st.write("**AI-POWERED AUTONOMOUS ANALYSIS**")
 
 if generate_btn:
     with st.spinner("Neural Brain is analyzing matches and historical trends..."):
         # Calcoliamo la quota necessaria
         req_odds = target / stake
         
-        # Prompt ottimizzato per evitare errori di formattazione JSON
+        # Prompt ottimizzato
         prompt = f"""
         Date: {datetime.now().strftime('%d %B %Y')}.
         Task: Professional Football Analyst.
@@ -79,7 +80,7 @@ if generate_btn:
         Required Total Odds: {req_odds:.2f}.
 
         Find 4-5 real matches occurring today or tomorrow. 
-        Analyze them using your internal 2026 data.
+        Analyze them using your internal data.
         Return ONLY a JSON array with this structure:
         [
           {{"match": "Home vs Away", "tip": "Prediction", "odds": 1.50, "conf": "90%", "logic": "1 sentence analysis"}}
@@ -135,15 +136,15 @@ if generate_btn:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                if st.button("VALIDATE SESSION"):
+                # Semplificato il tasto di validazione per evitare loop
+                if st.button("SAVE SESSION"):
                     st.balloons()
-                    st.success("Session Validated & Saved.")
+                    st.success("Session Saved.")
                     
         except Exception as e:
             st.error("AI Neural Overload. Please try again.")
-            st.info("Tip: Ensure your API Key is active in Google AI Studio.")
 else:
-    st.info("System Ready. Select your strategy and click 'EXECUTE NEURAL SCAN' to begin analysis.")
+    st.info("System Ready. Click 'EXECUTE NEURAL SCAN' to begin.")
 
 st.markdown("---")
 st.caption("© 2026 EDGE AI | Neural Precision Markets")
