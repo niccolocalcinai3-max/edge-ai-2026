@@ -3,108 +3,147 @@ import google.generativeai as genai
 import json
 from datetime import datetime
 
-# --- CONFIGURAZIONE ESTETICA ---
+# --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="EDGE AI | NEURAL STRATEGY 2026", layout="wide")
 
+# --- CUSTOM CSS (FIXED) ---
 st.markdown("""
     <style>
     .main { background-color: #000000; color: white; }
-    .stButton>button { width: 100%; border-radius: 0px; background-color: #ffffff; color: black; font-weight: bold; border: none; height: 50px; }
-    .stButton>button:hover { background-color: #cccccc; }
-    .prediction-card { padding: 20px; border: 1px solid #111; background-color: #050505; margin-bottom: 15px; border-left: 4px solid #00FF00; }
-    .metric-box { padding: 15px; background-color: #0a0a0a; border: 1px solid #111; text-align: center; }
+    div.stButton > button:first-child {
+        background-color: #ffffff;
+        color: #000000;
+        border-radius: 0px;
+        border: none;
+        font-weight: bold;
+        height: 45px;
+        width: 100%;
+    }
+    .prediction-card {
+        padding: 20px;
+        border: 1px solid #111;
+        background-color: #050505;
+        margin-bottom: 15px;
+        border-left: 5px solid #00FF00;
+    }
+    .metric-box {
+        padding: 20px;
+        background-color: #080808;
+        border: 1px solid #111;
+        text-align: center;
+    }
     </style>
-    """, unsafe_content_type=True)
+    """, unsafe_allow_html=True)
 
 # --- AI SETUP ---
-# Usiamo la tua chiave API
+# Inserisco la tua chiave direttamente per comodità
 GOOGLE_API_KEY = "AIzaSyCqe9yWNbVl47zbXgmo2dyMsmagCeZlEFM"
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- SIDEBAR ---
+# --- SIDEBAR NAVIGATION ---
 with st.sidebar:
     st.title("E D G E  A I")
-    st.overline("AUTONOMOUS INTELLIGENCE")
+    st.caption("NEURAL PREDICTION ENGINE 2026")
     st.markdown("---")
     
-    market = st.selectbox("MARKET ACCESS", ["Top European Leagues", "Serie A & B", "Premier League", "Champions League"])
-    risk = st.select_slider("RISK STRATEGY", options=["SAFE", "BALANCED", "AGGRESSIVE"], value="BALANCED")
+    market = st.selectbox("MARKET ACCESS", 
+                          ["Top European Leagues", "Serie A & B", "Premier League", "Champions League"])
+    
+    risk_mode = st.select_slider("RISK STRATEGY", 
+                                 options=["SAFE", "BALANCED", "AGGRESSIVE"], 
+                                 value="BALANCED")
     
     st.markdown("---")
-    stake = st.number_input("STAKE (€)", min_value=1.0, value=10.0)
-    target = st.number_input("TARGET (€)", min_value=1.0, value=100.0)
+    stake = st.number_input("STAKE (€)", min_value=1.0, value=10.0, step=1.0)
+    target = st.number_input("TARGET (€)", min_value=1.0, value=100.0, step=10.0)
     
+    st.markdown("---")
     generate_btn = st.button("EXECUTE NEURAL SCAN")
 
-# --- MAIN INTERFACE ---
-st.subheader("GLOBAL MARKET INTEL (LIVE AI ANALYSIS)")
+# --- MAIN DISPLAY ---
+st.title("GLOBAL MARKET INTEL")
+st.overline("AI-POWERED AUTONOMOUS ANALYSIS")
 
 if generate_btn:
-    with st.spinner("L'IA sta scansionando i mercati e analizzando i trend storici..."):
-        # Prompt per l'IA senza bisogno di file o API
-        # L'IA usa la sua conoscenza aggiornata al 2026
-        prompt = f"""
-        Oggi è il {datetime.now().strftime('%d %B %Y')}. 
-        Agisci come un analista di scommesse professionista. 
-        Trova le 5 partite più interessanti di oggi/domani nel mercato: {market}.
-        Per ogni partita, analizza lo stato di forma storico e recente delle squadre.
+    with st.spinner("Neural Brain is analyzing matches and historical trends..."):
+        # Calcoliamo la quota necessaria
+        req_odds = target / stake
         
-        Genera una schedina con strategia di rischio: {risk}.
-        Obiettivo quota totale vicina a: {target/stake:.2f}.
+        # Prompt ottimizzato per evitare errori di formattazione JSON
+        prompt = f"""
+        Date: {datetime.now().strftime('%d %B %Y')}.
+        Task: Professional Football Analyst.
+        Target Market: {market}.
+        Risk Profile: {risk_mode}.
+        Required Total Odds: {req_odds:.2f}.
 
-        Restituisci ESCLUSIVAMENTE un JSON con questa struttura:
+        Find 4-5 real matches occurring today or tomorrow. 
+        Analyze them using your internal 2026 data.
+        Return ONLY a JSON array with this structure:
         [
-          {{"match": "Squadra A - Squadra B", "tip": "1/X/2/Over", "odds": 1.50, "logic": "Analisi tecnica breve", "conf": "90%"}},
-          ...
+          {{"match": "Home vs Away", "tip": "Prediction", "odds": 1.50, "conf": "90%", "logic": "1 sentence analysis"}}
         ]
+        Do not write any prose before or after the JSON.
         """
         
         try:
             response = model.generate_content(prompt)
-            # Pulizia e parsing del JSON
-            clean_text = response.text.replace("```json", "").replace("```", "").strip()
-            data = json.loads(clean_text)
+            # Pulizia sicura del JSON
+            raw_text = response.text.strip()
+            if "```json" in raw_text:
+                raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in raw_text:
+                raw_text = raw_text.split("```")[1].split("```")[0].strip()
             
-            col1, col2 = st.columns([2, 1])
+            data = json.loads(raw_text)
+            
+            # Layout a due colonne
+            col_main, col_summary = st.columns([2, 1])
             
             total_odds = 1.0
             
-            with col1:
+            with col_main:
                 for item in data:
                     st.markdown(f"""
                     <div class="prediction-card">
-                        <div style="display: flex; justify-content: space-between;">
-                            <b style="font-size: 18px;">{item['match']}</b>
-                            <span style="color: #00FF00; font-weight: bold;">{item['conf']} CONF.</span>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 18px; font-weight: bold;">{item['match']}</span>
+                            <span style="color: #00FF00; font-weight: bold; font-size: 14px;">{item['conf']} CONFIDENCE</span>
                         </div>
-                        <div style="margin-top: 10px; color: #ccc;">
-                            <b>Pronostico: {item['tip']}</b> | Quota: {item['odds']}
+                        <div style="margin-top: 10px;">
+                            <b style="color: #ffffff;">TIP: {item['tip']}</b> | <span style="color: #888;">ODDS: {item['odds']}</span>
                         </div>
-                        <div style="margin-top: 5px; font-size: 12px; color: #888;">
+                        <div style="margin-top: 8px; font-size: 13px; color: #666; font-style: italic;">
                             {item['logic']}
                         </div>
                     </div>
-                    """, unsafe_content_type=True)
+                    """, unsafe_allow_html=True)
                     total_odds *= item['odds']
             
-            with col2:
-                st.markdown('<div class="metric-box">', unsafe_content_type=True)
-                st.write("### 🎫 TICKET SUMMARY")
-                st.write(f"**Strategy:** {risk}")
-                st.write(f"**Total Odds:** {total_odds:.2f}")
-                st.write(f"**Potential Win:** €{total_odds * stake:.2f}")
-                st.markdown('</div>', unsafe_content_type=True)
+            with col_summary:
+                st.markdown(f"""
+                <div class="metric-box">
+                    <h3 style="margin: 0; color: #ffffff;">LIVE TICKET</h3>
+                    <hr style="border: 0.5px solid #222;">
+                    <p style="color: #888;">STRATEGY: <b>{risk_mode}</b></p>
+                    <h2 style="color: #00FF00; margin: 10px 0;">{total_odds:.2f}</h2>
+                    <p style="font-size: 12px; color: #444;">TOTAL ODDS</p>
+                    <hr style="border: 0.5px solid #222;">
+                    <h3 style="color: #ffffff;">€{total_odds * stake:.2f}</h3>
+                    <p style="font-size: 12px; color: #444;">POTENTIAL WIN</p>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                if st.button("PRINT TICKET"):
+                if st.button("VALIDATE SESSION"):
                     st.balloons()
-                    st.success("Ticket salvato nella sessione!")
+                    st.success("Session Validated & Saved.")
                     
         except Exception as e:
-            st.error(f"Errore durante la scansione neurale: {e}")
-            st.info("Riprova tra pochi secondi, l'IA potrebbe essere sovraccarica.")
+            st.error("AI Neural Overload. Please try again.")
+            st.info("Tip: Ensure your API Key is active in Google AI Studio.")
 else:
-    st.write("In attesa di comando... Seleziona i parametri e clicca su 'EXECUTE NEURAL SCAN'.")
+    st.info("System Ready. Select your strategy and click 'EXECUTE NEURAL SCAN' to begin analysis.")
 
 st.markdown("---")
-st.caption("Edge AI Autonomous System - No External Data Required")
+st.caption("© 2026 EDGE AI | Neural Precision Markets")
