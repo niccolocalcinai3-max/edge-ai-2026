@@ -2,55 +2,53 @@ import streamlit as st
 import requests
 from datetime import datetime, timedelta
 
-# --- CONFIG ---
+# --- 1. CONFIG ---
 API_KEY = "0161ed129e075dbe7cab279cc96c7066"
 HEADERS = {'x-apisports-key': API_KEY}
 
+# Updated to include the IDs that are ACTIVE right now
 LEAGUES = {
-    "🌐 ALL ACTIVE (Recommended Now)": 0,
+    "🌐 ALL ACTIVE": 0,
     "🏆 International Friendlies": 10,
-    "🌍 WC Qualifiers": 1,
-    "🇬🇧 Premier League": 39,
-    "🇪🇸 La Liga": 140,
-    "🇮🇹 Serie A": 135
+    "🌍 World Cup Qualifiers": 1,
+    "🇬🇧 Premier League (Resumes April)": 39,
+    "🇪🇸 La Liga (Resumes April)": 140
 }
 
-st.sidebar.title("EDGE AI CONTROL")
-mode = st.sidebar.radio("WINDOW", ["Today", "1 Week", "2 Weeks"])
-target_league = st.sidebar.selectbox("LEAGUE", list(LEAGUES.keys()))
-
-# --- THE FIX ---
-def fetch_fixtures(date_str, league_id):
+# --- 2. THE SMART SCANNER ---
+def force_fetch(date_str, league_id):
     url = f"https://v3.football.api-sports.io/fixtures?date={date_str}"
     if league_id != 0:
         url += f"&league={league_id}"
     
-    try:
-        response = requests.get(url, headers=HEADERS).json()
-        fixtures = response.get('response', [])
-        # If specific league is empty, but user didn't pick "All", warn them
-        return fixtures
-    except:
-        return []
+    res = requests.get(url, headers=HEADERS).json().get('response', [])
+    
+    # FALLBACK: If your specific league is empty, try International Friendlies
+    if not res and league_id != 10:
+        st.info(f"No matches in selected league. Checking International Friendlies instead...")
+        fallback_url = f"https://v3.football.api-sports.io/fixtures?date={date_str}&league=10"
+        res = requests.get(fallback_url, headers=HEADERS).json().get('response', [])
+    return res
 
-if st.sidebar.button("RUN DEEP SCAN"):
+# --- 3. UI ---
+st.title("EDGE AI | 24/7 FIXTURE FINDER")
+mode = st.radio("TIME WINDOW", ["Today", "1 Week", "2 Weeks"])
+choice = st.selectbox("LEAGUE", list(LEAGUES.keys()))
+
+if st.button("EXECUTE SCAN"):
     days = 1 if mode == "Today" else (7 if mode == "1 Week" else 14)
-    l_id = LEAGUES[target_league]
+    found_count = 0
     
-    st.write(f"### 📊 Results for {target_league} ({mode})")
-    
-    found_any = False
     for i in range(days):
-        scan_date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
-        data = fetch_fixtures(scan_date, l_id)
+        date_str = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
+        matches = force_fetch(date_str, LEAGUES[choice])
         
-        if data:
-            found_any = True
-            with st.expander(f"Matches for {scan_date}"):
-                for m in data[:15]: # Limit to top 15 per day
+        if matches:
+            found_count += len(matches)
+            with st.expander(f"📅 {date_str} - {len(matches)} Matches"):
+                for m in matches[:10]:
                     st.write(f"⚽ **{m['teams']['home']['name']} vs {m['teams']['away']['name']}**")
-                    st.caption(f"League: {m['league']['name']} | Status: {m['fixture']['status']['long']}")
-        
-    if not found_any:
-        st.error(f"Zero matches found for {target_league}. NOTE: Major European leagues are currently on International Break until April 3-10.")
-        st.info("💡 **Switch to 'ALL ACTIVE' or 'International Friendlies' to see today's big games like Spain vs Serbia!**")
+                    st.caption(f"League: {m['league']['name']} | Kickoff: {m['fixture']['date'][11:16]}")
+    
+    if found_count == 0:
+        st.error("Still nothing. This usually means your API Key has hit its daily limit.")
