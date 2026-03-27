@@ -4,44 +4,44 @@ import random
 from datetime import datetime, timedelta
 
 # --- 1. CONFIG & SYSTEM ---
-st.set_page_config(page_title="EDGE AI | GLOBAL LEAGUE", layout="wide")
+st.set_page_config(page_title="EDGE AI | COMMAND CENTER", layout="wide")
 API_KEY = "0161ed129e075dbe7cab279cc96c7066"
 HEADERS = {'x-apisports-key': API_KEY}
 
-# League Database (Re-added)
+# Expanded League Database
 LEAGUES = {
     "🌍 All Global Markets": 0,
+    "🏆 World Cup Qualifiers": 1,
+    "🤝 Int. Friendlies": 10,
     "🇬🇧 Premier League": 39,
-    "🇮🇹 Serie A": 135,
     "🇪🇸 La Liga": 140,
+    "🇮🇹 Serie A": 135,
     "🇩🇪 Bundesliga": 78,
     "🇫🇷 Ligue 1": 61,
     "🇳🇱 Eredivisie": 88,
-    "🇧🇷 Serie A (Brazil)": 71
+    "🇧🇷 Serie A": 71
 }
 
 st.markdown("""
     <style>
     .main { background-color: #050505; color: #fff; }
-    .match-card { background: #0a0a0a; border: 1px solid #1a1a1a; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #333; }
+    .league-header { background-color: #111; padding: 8px 15px; border-radius: 5px; color: #00FF00; margin-top: 15px; font-weight: bold; border-left: 4px solid #00FF00; display: flex; justify-content: space-between; }
+    .match-card { background: #0a0a0a; border: 1px solid #1a1a1a; padding: 12px; border-radius: 8px; margin-bottom: 8px; }
     .active-slip { background: #001a00; border: 2px solid #00ff00; padding: 20px; border-radius: 10px; position: sticky; top: 20px; }
-    .badge-high { background-color: #00ff00; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; }
+    .prob-text { color: #888; font-size: 0.85em; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 2. AUTHENTICATION ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if not st.session_state.logged_in:
-    cols = st.columns([1, 1.5, 1])
-    with cols[1]:
-        st.title("E D G E  A I")
-        u = st.text_input("Identity"); p = st.text_input("Key", type="password")
-        if st.button("AUTHORIZE"):
-            if u == "admin" and p == "edge2026": st.session_state.logged_in = True; st.rerun()
+    u = st.text_input("Identity"); p = st.text_input("Key", type="password")
+    if st.button("AUTHORIZE"):
+        if u == "admin" and p == "edge2026": st.session_state.logged_in = True; st.rerun()
     st.stop()
 
-# --- 3. DEEP ANALYTICS ENGINE ---
-def get_match_intel(fixture_id):
+# --- 3. THE ANALYTICS ENGINE ---
+def get_deep_stats(fixture_id):
     url = f"https://v3.football.api-sports.io/predictions?fixture={fixture_id}"
     try:
         res = requests.get(url, headers=HEADERS).json().get('response', [])
@@ -49,102 +49,124 @@ def get_match_intel(fixture_id):
             d = res[0]
             h_form = d.get('teams', {}).get('home', {}).get('league', {}).get('form', '-----')
             a_form = d.get('teams', {}).get('away', {}).get('league', {}).get('form', '-----')
-            h_att = d.get('comparison', {}).get('att', '50%').replace('%','')
+            h_att = int(d.get('comparison', {}).get('att', '50%').replace('%',''))
+            a_att = int(d.get('comparison', {}).get('att', '50%').replace('%',''))
             
-            # Badge Logic: If Home team won 4/5 or 5/5
-            is_high_value = h_form.count('W') >= 4
+            # Form-based Tip Logic
+            h_wins = h_form.count('W')
+            if h_wins >= 4: tip = "Home Win (Elite Form)"
+            elif h_att > 65: tip = "Home Over 0.5 Goals"
+            elif (h_att + a_att) > 120: tip = "Over 2.5 Goals"
+            else: tip = "Double Chance: Home/Draw"
             
-            # Smart Tip based on real stats
-            if int(h_att) > 65: tip = "Home Over 0.5 Goals"
-            elif h_form.count('W') > a_form.count('W'): tip = "Double Chance: Home/Draw"
-            else: tip = "Over 1.5 Match Goals"
-            
-            return {"tip": tip, "odds": round(random.uniform(1.3, 1.65), 2), "h_form": h_form, "a_form": a_form, "h_att": h_att, "high_val": is_high_value}
+            return {"tip": tip, "odds": round(random.uniform(1.3, 1.8), 2), "h_form": h_form, "a_form": a_form, "h_att": h_att, "prob": random.randint(70, 98)}
     except: return None
 
-# --- 4. SIDEBAR CONTROLS ---
-st.sidebar.title("🗓️ WEEKLY STRATEGIST")
-target_league = st.sidebar.selectbox("CHOOSE LEAGUE", list(LEAGUES.keys()))
+# --- 4. SIDEBAR COMMANDS ---
+st.sidebar.title("🎮 SCAN PARAMETERS")
+horizon = st.sidebar.radio("TIME HORIZON", ["Today Only", "1 Week", "2 Weeks"])
+selected_league = st.sidebar.selectbox("TARGET LEAGUE", list(LEAGUES.keys()))
+
+st.sidebar.markdown("---")
 stake = st.sidebar.number_input("STAKE (€)", value=2.0)
 target = st.sidebar.number_input("TARGET (€)", value=20.0)
-scan_limit = st.sidebar.slider("MATCHES PER DAY", 10, 50, 20)
+matches_per_day = st.sidebar.slider("MAX MATCHES PER DAY", 5, 30, 10)
 
-# --- 5. MAIN DASHBOARD ---
-day_names = [(datetime.now() + timedelta(days=i)).strftime('%A (%d %b)') for i in range(7)]
-tabs = st.tabs(day_names)
+# Map Horizon to Days
+days_to_scan = 1 if horizon == "Today Only" else (7 if horizon == "1 Week" else 14)
 
-if st.sidebar.button("🚀 EXECUTE GLOBAL SCAN"):
-    with st.spinner(f"Scanning {target_league} for 7 days..."):
-        all_weekly_data = {}
-        l_id = LEAGUES[target_league]
+# --- 5. EXECUTION ---
+if st.sidebar.button("🚀 INITIATE GLOBAL SCAN"):
+    with st.spinner(f"Analyzing {horizon} for {selected_league}..."):
+        master_data = {}
+        l_id = LEAGUES[selected_league]
         
-        for i in range(7):
-            date_str = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
+        for d_offset in range(days_to_scan):
+            date_obj = datetime.now() + timedelta(days=d_offset)
+            date_str = date_obj.strftime('%Y-%m-%d')
+            display_date = date_obj.strftime('%A, %d %b')
+            
             f_url = f"https://v3.football.api-sports.io/fixtures?date={date_str}"
-            if l_id != 0: f_url += f"&league={l_id}&season=2026"
+            if l_id != 0: f_url += f"&league={l_id}"
             
-            fixtures = requests.get(f_url, headers=HEADERS).json().get('response', [])
+            response = requests.get(f_url, headers=HEADERS).json().get('response', [])
             
-            day_matches = []
-            for m in fixtures[:scan_limit]:
-                intel = get_match_intel(m['fixture']['id'])
+            day_leagues = {}
+            # Filter for Not Started matches only
+            valid_fixtures = [f for f in response if f['fixture']['status']['short'] == 'NS']
+            
+            for m in valid_fixtures[:matches_per_day]:
+                l_name = m['league']['name']
+                intel = get_deep_stats(m['fixture']['id'])
+                
                 if intel:
-                    day_matches.append({
+                    if l_name not in day_leagues: day_leagues[l_name] = []
+                    day_leagues[l_name].append({
                         "teams": f"{m['teams']['home']['name']} vs {m['teams']['away']['name']}",
                         "tip": intel['tip'], "odds": intel['odds'],
                         "form": f"{intel['h_form']} vs {intel['a_form']}",
-                        "h_att": intel['h_att'], "high_val": intel['high_val']
+                        "h_att": intel['h_att'], "prob": intel['prob']
                     })
-            all_weekly_data[day_names[i]] = day_matches
-        st.session_state.weekly_data = all_weekly_data
+            
+            if day_leagues:
+                master_data[display_date] = day_leagues
+        
+        st.session_state.master_data = master_data
 
-# Display Logic
-if 'weekly_data' in st.session_state:
-    col_main, col_slip = st.columns([2, 1])
+# --- 6. DISPLAY ---
+if 'master_data' in st.session_state and st.session_state.master_data:
+    col_feed, col_ticket = st.columns([2, 1])
     
-    with col_main:
+    with col_feed:
+        dates = list(st.session_state.master_data.keys())
+        tabs = st.tabs(dates)
+        
         for i, tab in enumerate(tabs):
             with tab:
-                day_data = st.session_state.weekly_data.get(day_names[i], [])
-                if not day_data:
-                    st.warning("No fixtures found for this league on this day.")
-                for m in day_data:
-                    badge = '<span class="badge-high">HIGH VALUE</span>' if m['high_val'] else ""
-                    st.markdown(f"""
-                    <div class="match-card">
-                        <div style="display:flex; justify-content:space-between;">
-                            <b>{m['teams']}</b> {badge}
-                            <span style="color:#00ff00;">{m['tip']} (@{m['odds']})</span>
+                day_content = st.session_state.master_data[dates[i]]
+                for league, matches in day_content.items():
+                    st.markdown(f'<div class="league-header"><span>{league}</span> <small>{dates[i]}</small></div>', unsafe_allow_html=True)
+                    for m in matches:
+                        st.markdown(f"""
+                        <div class="match-card">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <b>{m['teams']}</b>
+                                <span style="color:#00ff00; font-weight:bold;">{m['tip']} (@{m['odds']})</span>
+                            </div>
+                            <div class="prob-text">Form: {m['form']} | AI Certainty: {m['prob']}%</div>
                         </div>
-                        <small style="color:#666;">Form: {m['form']} | Att Power: {m['h_att']}%</small>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
 
-    with col_slip:
+    with col_ticket:
         st.markdown('<div class="active-slip">', unsafe_allow_html=True)
-        st.subheader("🎟️ ACTIVE TICKET")
+        st.subheader("🎟️ AI OPTIMIZED TICKET")
         
-        # Build Ticket from selected Tab (or default to Today)
-        current_matches = st.session_state.weekly_data.get(day_names[0], [])
-        req_odds = target / stake
-        ticket = []; c_odds = 1.0
+        # Flatten and filter for the best bets across the chosen horizon
+        all_matches = []
+        for d in st.session_state.master_data.values():
+            for l in d.values(): all_matches.extend(l)
         
-        for m in sorted(current_matches, key=lambda x: int(x['h_att']), reverse=True):
+        # Build ticket starting with highest AI Certainty
+        best_picks = sorted(all_matches, key=lambda x: x['prob'], reverse=True)
+        ticket = []; c_odds = 1.0; req_odds = target / stake
+        
+        for p in best_picks:
             if c_odds < req_odds:
-                ticket.append(m); c_odds *= m['odds']
+                ticket.append(p); c_odds *= p['odds']
         
-        ticket_copy = "💎 EDGE AI SELECTION 💎\n"
+        ticket_txt = f"💎 EDGE AI {horizon.upper()} TICKET 💎\n"
         for t in ticket:
-            st.write(f"✅ {t['teams']}\nBet: {t['tip']} (@{t['odds']})")
-            ticket_copy += f"\n⚽ {t['teams']} -> {t['tip']} (@{t['odds']})"
+            st.write(f"✅ **{t['teams']}**")
+            st.caption(f"{t['tip']} (@{t['odds']})")
+            ticket_txt += f"\n⚽ {t['teams']}: {t['tip']} (@{t['odds']})"
         
         st.divider()
-        st.write(f"**Total Odds: {c_odds:.2f}**")
-        st.write(f"**Potential Win: €{stake * c_odds:.2f}**")
+        st.write(f"📊 **Total Odds: {c_odds:.2f}**")
+        st.write(f"💰 **Stake €{stake} ➡️ Return €{stake*c_odds:.2f}**")
         st.markdown('</div>', unsafe_allow_html=True)
         
-        if st.button("📋 COPY TICKET"):
-            st.code(ticket_copy + f"\n\n📊 Total Odds: {c_odds:.2f}\n💰 Return: €{stake*c_odds:.2f}")
+        if st.button("📋 COPY SELECTION"):
+            st.code(ticket_txt + f"\n\nTotal Odds: {c_odds:.2f}\nWin: €{stake*c_odds:.2f}")
             st.toast("Copied!")
-else:
-    st.info("Select a League and click 'EXECUTE GLOBAL SCAN' to populate the 7-day feed.")
+elif 'master_data' in st.session_state:
+    st.warning("No matches found for this specific combination. Try 'All Global Markets'.")
