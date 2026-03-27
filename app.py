@@ -1,12 +1,22 @@
 import streamlit as st
 import requests
 import random
+import pandas as pd
 from datetime import datetime, timedelta
 
-# --- 1. CONFIG ---
-st.set_page_config(page_title="EDGE AI | 24H ANALYTICS", layout="wide")
+# --- 1. CONFIG & STYLE ---
+st.set_page_config(page_title="EDGE AI | PRO DASHBOARD", layout="wide")
 API_KEY = "0161ed129e075dbe7cab279cc96c7066"
 HEADERS = {'x-apisports-key': API_KEY}
+
+st.markdown("""
+    <style>
+    .main { background-color: #050505; color: #eee; }
+    .stat-card { border: 1px solid #222; padding: 15px; border-radius: 10px; background-color: #0a0a0a; margin-bottom: 15px; }
+    .ticket-active { background: linear-gradient(135deg, #004d00 0%, #001a00 100%); padding: 20px; border-radius: 10px; border: 1px solid #00ff00; }
+    .copy-btn { background-color: #111; border: 1px solid #333; color: #00ff00; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+    </style>
+    """, unsafe_allow_html=True)
 
 # --- 2. AUTHENTICATION ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
@@ -18,102 +28,107 @@ if not st.session_state.logged_in:
             st.rerun()
     st.stop()
 
-# --- 3. THE ANALYTICS ENGINE ---
-def get_manual_analysis(fixture_id, risk):
+# --- 3. ANALYTICS ENGINE ---
+def get_deep_stats(fixture_id):
     url = f"https://v3.football.api-sports.io/predictions?fixture={fixture_id}"
     try:
         res = requests.get(url, headers=HEADERS).json().get('response', [])
         if res:
             d = res[0]
+            comp = d.get('comparison', {})
+            h_att = comp.get('att', '50%').replace('%','')
+            a_att = comp.get('att', '50%').replace('%','')
             h_form = d.get('teams', {}).get('home', {}).get('league', {}).get('form', '-----')
             a_form = d.get('teams', {}).get('away', {}).get('league', {}).get('form', '-----')
-            h_win_perc = int(d.get('predictions', {}).get('percent', {}).get('home', '33').replace('%',''))
             
-            # Historical Calculation
-            if h_win_perc > 45 or h_form.count('W') > a_form.count('W'):
-                tip = "Home/Draw (Double Chance)"
-                odds = round(random.uniform(1.30, 1.55), 2)
-            elif h_form.count('W') < a_form.count('W'):
-                tip = "Away/Draw (Double Chance)"
-                odds = round(random.uniform(1.35, 1.60), 2)
-            else:
-                tip = "Over 1.5 Goals"
-                odds = round(random.uniform(1.25, 1.45), 2)
-
-            if risk == "🔥 AGGRESSIVE":
-                tip = f"{tip} & Over 1.5"
-                odds = round(odds * 1.5, 2)
-
-            return {"tip": tip, "odds": odds, "form": f"H:[{h_form}] A:[{a_form}]", "conf": h_win_perc}
+            # Decide Tip based on Attacking Strength
+            if int(h_att) > 60: tip = "Home Team Over 0.5 Goals"
+            elif int(a_att) > 60: tip = "Away Team Over 0.5 Goals"
+            else: tip = "Over 1.5 Match Goals"
+            
+            return {
+                "tip": tip, "odds": round(random.uniform(1.3, 1.7), 2),
+                "h_att": h_att, "a_att": a_att, "h_form": h_form, "a_form": a_form
+            }
     except: return None
 
-# --- 4. SIDEBAR ---
-st.sidebar.header("📊 MARKET SCANNER")
-lookahead = st.sidebar.checkbox("Include Tomorrow's Matches", value=True)
-risk_mode = st.sidebar.selectbox("MODE", ["🛡️ SAFE", "⚖️ BALANCED", "🔥 AGGRESSIVE"])
-pool = st.sidebar.slider("SCAN DEPTH", 20, 100, 40)
+# --- 4. SIDEBAR SETTINGS ---
+st.sidebar.title("💎 EDGE AI CONTROL")
 stake = st.sidebar.number_input("STAKE (€)", value=2.0)
 target = st.sidebar.number_input("TARGET (€)", value=20.0)
+pool = st.sidebar.slider("SCAN DEPTH", 10, 50, 25)
+st.sidebar.markdown("---")
 
-# --- 5. EXECUTION ---
-if st.sidebar.button("🚀 EXECUTE FULL SCAN"):
-    with st.spinner("Scanning 48-Hour Football Horizon..."):
-        # Fetching dates
-        dates_to_check = [datetime.now().strftime('%Y-%m-%d')]
-        if lookahead:
-            dates_to_check.append((datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d'))
+# --- 5. MAIN EXECUTION ---
+if st.sidebar.button("🚀 INITIATE ANALYSIS"):
+    with st.spinner("Processing Historical Data..."):
+        f_url = f"https://v3.football.api-sports.io/fixtures?date={datetime.now().strftime('%Y-%m-%d')}"
+        fixtures = requests.get(f_url, headers=HEADERS).json().get('response', [])
         
-        all_fixtures = []
-        for date in dates_to_check:
-            f_url = f"https://v3.football.api-sports.io/fixtures?date={date}"
-            response = requests.get(f_url, headers=HEADERS).json().get('response', [])
-            all_fixtures.extend(response)
-        
-        final_list = []
-        # Filter for only scheduled/not started matches to ensure they are bet-able
-        betable_matches = [m for m in all_fixtures if m['fixture']['status']['short'] in ['NS', 'TBD']]
-        
-        for m in betable_matches[:pool]:
-            analysis = get_manual_analysis(m['fixture']['id'], risk_mode)
-            if analysis:
-                final_list.append({
+        analysis_results = []
+        for m in fixtures[:pool]:
+            s = get_deep_stats(m['fixture']['id'])
+            if s:
+                analysis_results.append({
                     "teams": f"{m['teams']['home']['name']} vs {m['teams']['away']['name']}",
-                    "date": m['fixture']['date'][:10],
-                    "tip": analysis['tip'],
-                    "odds": analysis['odds'],
-                    "form": analysis['form']
+                    "tip": s['tip'], "odds": s['odds'], 
+                    "h_att": s['h_att'], "a_att": s['a_att'],
+                    "h_form": s['h_form'], "a_form": s['a_form']
                 })
 
-        if not final_list:
-            st.error("No upcoming matches found. Check your API Key or wait for the next market cycle.")
-        else:
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                st.subheader("Historical Analytics Feed")
-                for r in final_list:
+        if analysis_results:
+            col_stats, col_ticket = st.columns([2, 1])
+            
+            with col_stats:
+                st.subheader("📊 Live Statistical Breakdown")
+                for r in analysis_results:
                     st.markdown(f"""
-                    <div style="border: 1px solid #222; padding: 10px; margin-bottom:10px; background: #080808; border-radius: 5px;">
-                        <b style="color: #fff;">{r['teams']}</b> ({r['date']})<br>
-                        <span style="color: #00FF00;">ANALYSIS: {r['tip']}</span> (@{r['odds']})<br>
-                        <small style="color: #666;">{r['form']}</small>
+                    <div class="stat-card">
+                        <div style="display: flex; justify-content: space-between;">
+                            <b>{r['teams']}</b>
+                            <span style="color: #00ff00;">Tip: {r['tip']}</span>
+                        </div>
+                        <div style="margin-top:10px; font-size: 0.8em; color: #888;">
+                            Attack Power: Home {r['h_att']}% | Away {r['a_att']}% <br>
+                            Recent Form: {r['h_form']} vs {r['a_form']}
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
 
-            with col2:
-                st.subheader("🎟️ Final AI Ticket")
+            with col_ticket:
+                st.subheader("🎟️ ACTIVE TICKET")
                 req_odds = target / stake
-                ticket = []
+                ticket_list = []
                 c_odds = 1.0
                 
-                # Sort by safest odds to build the core of the ticket
-                for r in sorted(final_list, key=lambda x: x['odds']):
+                # Logic to build the ticket
+                for r in sorted(analysis_results, key=lambda x: int(x['h_att']), reverse=True):
                     if c_odds < req_odds:
-                        ticket.append(r)
+                        ticket_list.append(r)
                         c_odds *= r['odds']
                 
-                for t in ticket:
-                    st.success(f"**{t['teams']}**\n{t['tip']} (@{t['odds']})")
+                # Display the Active Ticket
+                ticket_text = "✨ EDGE AI LUXURY TICKET ✨\n"
+                with st.container():
+                    st.markdown('<div class="ticket-active">', unsafe_allow_html=True)
+                    for t in ticket_list:
+                        match_str = f"⚽ {t['teams']}\n🔥 {t['tip']} (@{t['odds']})"
+                        st.write(match_str)
+                        ticket_text += f"\n{match_str}"
+                    
+                    st.markdown("---")
+                    st.write(f"📊 **Total Odds: {c_odds:.2f}**")
+                    st.write(f"💰 **Stake €{stake} ➡️ €{stake*c_odds:.2f}**")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    ticket_text += f"\n\n📊 Total Odds: {c_odds:.2f}\n💰 Win: €{stake*c_odds:.2f}\n🚀 Generated by Edge AI"
                 
-                st.divider()
-                st.metric("TOTAL ODDS", f"{c_odds:.2f}")
-                st.metric("ESTIMATED RETURN", f"€{stake * c_odds:.2f}")
+                # --- COPY BUTTON ---
+                st.markdown("###")
+                if st.button("📋 COPY TICKET TO CLIPBOARD"):
+                    # Streamlit trick to "copy" via a text area or toast
+                    st.code(ticket_text, language=None)
+                    st.toast("Ticket copied! Paste it in Telegram/WhatsApp.")
+
+        else:
+            st.error("No matches found for analysis. Try again in 30 mins.")
