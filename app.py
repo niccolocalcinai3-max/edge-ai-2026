@@ -4,225 +4,183 @@ import pandas as pd
 from datetime import datetime, timedelta
 import pytz
 
-# --- CONFIGURAZIONE ---
+# --- CORE SETTINGS ---
 API_KEY = "0b3023a2a74049d0814cba1fea80ce26"
 BASE_URL = "https://api.football-data.org/v4/"
-FREE_LEAGUES = {"SA": "SA", "PL": "PL", "PD": "PD", "BL1": "BL1", "FL1": "FL1", "CL": "CL"}
+LEAGUES = {"Serie A": "SA", "Premier League": "PL", "La Liga": "PD", "Bundesliga": "BL1", "Ligue 1": "FL1"}
 
-st.set_page_config(page_title="EDGE_NOIR_V20", layout="wide")
+st.set_page_config(page_title="EDGE PRO", layout="wide")
 
-# --- CSS & JS PARTICLES (BACKGROUND) ---
+# --- CLEAN NOIR UI ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
     
     html, body, [class*="st-"] {
         font-family: 'Inter', sans-serif;
-        background-color: #000000 !important;
-        color: #FFFFFF !important;
+        background-color: #050505 !important;
+        color: #EEEEEE !important;
     }
 
-    #canvas {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: -1;
-    }
-
+    /* Minimalist Buttons */
     .stButton>button {
-        background-color: transparent !important;
+        background-color: #111 !important;
         color: #FFF !important;
         border: 1px solid #333 !important;
-        border-radius: 0px !important;
+        border-radius: 4px !important;
+        padding: 10px 20px !important;
         width: 100%;
-        letter-spacing: 2px;
-        font-size: 0.8rem;
+        transition: all 0.2s;
     }
-    
     .stButton>button:hover {
-        border-color: #FFF !important;
         background-color: #FFF !important;
         color: #000 !important;
+        border-color: #FFF !important;
     }
 
-    .match-box {
+    /* Match Cards */
+    .match-card {
         border: 1px solid #222;
-        padding: 15px;
-        margin-bottom: 10px;
-        background: rgba(5, 5, 5, 0.7);
-    }
-
-    .gold-box {
-        border: 1px solid #FFF;
         padding: 20px;
+        background: #0A0A0A;
+        margin-bottom: 12px;
+    }
+    
+    .gold-header {
+        border: 1px solid #FFF;
         background: #FFF;
         color: #000;
-        margin-bottom: 25px;
+        padding: 15px;
         font-weight: bold;
+        text-align: center;
+        margin-bottom: 20px;
     }
 
-    .stTextInput>div>div>input, .stNumberInput>div>div>input {
-        background-color: #000 !important;
-        color: #FFF !important;
-        border: 1px solid #333 !important;
-        border-radius: 0px !important;
+    /* Subtitle styling */
+    .sub-text { color: #888; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
+    
+    /* Metrics box */
+    .summary-box {
+        border-top: 2px solid #FFF;
+        padding-top: 20px;
+        margin-top: 20px;
     }
-
-    h1, h2, h3 { letter-spacing: -1px; text-transform: uppercase; }
     </style>
-
-    <canvas id="canvas"></canvas>
-    <script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    let particles = [];
-    class Particle {
-        constructor() {
-            this.x = Math.random() * canvas.width;
-            this.y = Math.random() * canvas.height;
-            this.size = Math.random() * 2;
-            this.speedX = Math.random() * 0.5 - 0.25;
-            this.speedY = Math.random() * 0.5 - 0.25;
-        }
-        update() {
-            this.x += this.speedX;
-            this.y += this.speedY;
-            if (this.x > canvas.width) this.x = 0;
-            if (this.x < 0) this.x = canvas.width;
-            if (this.y > canvas.height) this.y = 0;
-            if (this.y < 0) this.y = canvas.height;
-        }
-        draw() {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-    function init() {
-        particles = [];
-        for (let i = 0; i < 80; i++) { particles.push(new Particle()); }
-    }
-    function animate() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        particles.forEach(p => { p.update(); p.draw(); });
-        requestAnimationFrame(animate);
-    }
-    window.addEventListener('resize', function(){
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        init();
-    });
-    init(); animate();
-    </script>
     """, unsafe_allow_html=True)
 
-# --- LOGICA API ---
-def fetch_real_matches(leagues):
+# --- API LOGIC ---
+def run_api_scan(selected_codes):
     headers = {'X-Auth-Token': API_KEY}
-    date_to = (datetime.now() + timedelta(days=10)).strftime('%Y-%m-%d')
-    url = f"{BASE_URL}matches?dateTo={date_to}"
+    # Scanning next 7 days
+    url = f"{BASE_URL}matches?dateTo={(datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')}"
     try:
-        res = requests.get(url, headers=headers).json()
+        response = requests.get(url, headers=headers).json()
+        matches = response.get('matches', [])
         found = []
-        for m in res.get('matches', []):
-            if m['competition']['code'] in [FREE_LEAGUES[l] for l in leagues]:
+        for m in matches:
+            if m['competition']['code'] in selected_codes:
                 found.append({
-                    "Match": f"{m['homeTeam']['name']} / {m['awayTeam']['name']}",
+                    "Match": f"{m['homeTeam']['shortName']} v {m['awayTeam']['shortName']}",
                     "Lega": m['competition']['name'],
-                    "Tip": "1X / U4.5" if m['homeTeam']['id'] < m['awayTeam']['id'] else "X2",
-                    "Odds": 1.52
+                    "Tip": "1X" if m['homeTeam']['id'] < m['awayTeam']['id'] else "X2",
+                    "Odds": 1.55
                 })
         return found
-    except: return []
+    except Exception as e:
+        st.error(f"API Error: Check Connection")
+        return []
 
 # --- SIDEBAR ---
-st.sidebar.title("SYSTEM / V20")
+st.sidebar.title("EDGE_SYSTEM_V21")
 st.sidebar.markdown("---")
-bankroll = st.sidebar.number_input("BANKROLL_EUR", value=500.0)
 
-st.sidebar.subheader("/ STRATEGY_LOAD")
-if st.sidebar.button("-> SAFE_ELITE"):
-    st.session_state['mode'] = "SAFE"
-    st.session_state['matches'] = [
-        {"Match": "JUVENTUS / FIORENTINA", "Tip": "1X + U3.5", "Odds": 1.50, "Lega": "SERIE A"},
-        {"Match": "LIVERPOOL / EVERTON", "Tip": "OVER 2.5", "Odds": 1.62, "Lega": "PREMIER"},
-        {"Match": "REAL MADRID / VILLARREAL", "Tip": "1", "Odds": 1.45, "Lega": "LA LIGA"},
-        {"Match": "LEVERKUSEN / LEIPZIG", "Tip": "GOAL", "Odds": 1.55, "Lega": "BUNDESLIGA"}
+bankroll = st.sidebar.number_input("BANKROLL (€)", value=500.0)
+
+st.sidebar.subheader("1. EXPERT STRATEGIES")
+if st.sidebar.button("LOAD SAFE ELITE"):
+    st.session_state['data'] = [
+        {"Match": "Juventus v Fiorentina", "Tip": "1X + U3.5", "Odds": 1.50, "Lega": "SERIE A"},
+        {"Match": "Liverpool v Everton", "Tip": "Over 2.5", "Odds": 1.62, "Lega": "PREMIER"},
+        {"Match": "Real Madrid v Villarreal", "Tip": "Segno 1", "Odds": 1.45, "Lega": "LA LIGA"},
+        {"Match": "Leverkusen v Leipzig", "Tip": "Goal", "Odds": 1.55, "Lega": "BUNDESLIGA"}
     ]
+    st.session_state['mode_name'] = "SAFE ELITE"
 
-if st.sidebar.button("-> TARGET_100"):
-    st.session_state['mode'] = "RISK"
-    st.session_state['matches'] = [
-        {"Match": "BOLOGNA / INTER", "Tip": "X", "Odds": 3.60, "Lega": "SERIE A"},
-        {"Match": "NEWCASTLE / MAN UTD", "Tip": "2 + GOAL", "Odds": 4.80, "Lega": "PREMIER"},
-        {"Match": "BILBAO / ATL. MADRID", "Tip": "1 + U2.5", "Odds": 4.20, "Lega": "LA LIGA"},
-        {"Match": "DORTMUND / STUTTGART", "Tip": "O3.5 + GOAL", "Odds": 3.20, "Lega": "BUNDESLIGA"},
-        {"Match": "MARSEILLE / NICE", "Tip": "X + U2.5", "Odds": 3.50, "Lega": "LIGUE 1"}
+if st.sidebar.button("LOAD QUOTA 100"):
+    st.session_state['data'] = [
+        {"Match": "Bologna v Inter", "Tip": "X", "Odds": 3.60, "Lega": "SERIE A"},
+        {"Match": "Newcastle v Man Utd", "Tip": "2 + Goal", "Odds": 4.80, "Lega": "PREMIER"},
+        {"Match": "Bilbao v Atl. Madrid", "Tip": "1 + U2.5", "Odds": 4.20, "Lega": "LA LIGA"},
+        {"Match": "Dortmund v Stuttgart", "Tip": "O3.5 + Goal", "Odds": 3.20, "Lega": "BUNDESLIGA"},
+        {"Match": "Marseille v Nice", "Tip": "X + U2.5", "Odds": 3.50, "Lega": "LIGUE 1"}
     ]
-
-st.sidebar.subheader("/ LIVE_SCAN")
-sel_l = st.sidebar.multiselect("SELECT_LEAGUES", list(FREE_LEAGUES.keys()), default=["SA", "PL"])
-if st.sidebar.button("-> RUN_SCAN"):
-    st.session_state['mode'] = "LIVE"
-    st.session_state['matches'] = fetch_real_matches(sel_l)
+    st.session_state['mode_name'] = "TARGET 100"
 
 st.sidebar.divider()
-g_m = st.sidebar.text_input("GOLD_MATCH")
-g_t = st.sidebar.text_input("GOLD_TIP")
-g_o = st.sidebar.number_input("GOLD_ODDS", value=1.50)
-if st.sidebar.button("-> COMMIT_GOLD"):
-    st.session_state['gold'] = {"Match": g_m, "Tip": g_t, "Odds": g_o}
+st.sidebar.subheader("2. LIVE MARKET SCAN")
+sel_leagues = st.sidebar.multiselect("Select Leagues", list(LEAGUES.keys()), default=["Serie A"])
+if st.sidebar.button("RUN LIVE SCAN"):
+    codes = [LEAGUES[l] for l in sel_leagues]
+    with st.spinner("Accessing API..."):
+        st.session_state['data'] = run_api_scan(codes)
+        st.session_state['mode_name'] = "LIVE SCAN"
 
-if st.sidebar.button("-> RESET"):
+st.sidebar.divider()
+if st.sidebar.button("RESET SYSTEM"):
     st.session_state.clear()
     st.rerun()
 
-# --- MAIN ---
-c1, c2 = st.columns([2, 1])
+# --- MAIN CONTENT ---
+col_main, col_ticket = st.columns([2, 1])
 
-with c1:
-    if 'gold' in st.session_state:
-        g = st.session_state['gold']
-        st.markdown(f'<div class="gold-box">/ GOLD_SELECTION / {g["Match"]} // {g["Tip"]} @ {g["Odds"]}</div>', unsafe_allow_html=True)
+with col_main:
+    st.title("ANALYSIS_FEED")
     
-    st.subheader("/ MARKET_FEED")
-    if 'matches' in st.session_state:
-        for m in st.session_state['matches']:
-            st.markdown(f"""<div class="match-box">
-                <small>{m['Lega']}</small><br>
-                <b>{m['Match']}</b><br>
-                <span>{m['Tip']} // {m['Odds']}</span>
-            </div>""", unsafe_allow_html=True)
+    if 'data' in st.session_state and st.session_state['data']:
+        st.markdown(f"<p class='sub-text'>Mode: {st.session_state.get('mode_name', 'None')}</p>", unsafe_allow_html=True)
+        for m in st.session_state['data']:
+            st.markdown(f"""
+                <div class="match-card">
+                    <span class="sub-text">{m['Lega']}</span><br>
+                    <b style="font-size:1.2rem;">{m['Match']}</b><br>
+                    <span style="color:#FFF;">{m['Tip']}</span> // <span style="color:#888;">@{m['Odds']}</span>
+                </div>
+            """, unsafe_allow_html=True)
     else:
-        st.info("SYSTEM_IDLE: AWAITING_INPUT")
+        st.info("Select a strategy or run a scan to begin.")
 
-with c2:
-    st.subheader("/ TICKET_DATA")
-    if 'matches' in st.session_state:
+with col_ticket:
+    st.subheader("YOUR_TICKET")
+    
+    if 'data' in st.session_state and st.session_state['data']:
         total_odds = 1.0
-        output_txt = "--- EDGE_NOIR_REPORT ---\n"
-        for m in st.session_state['matches']:
-            total_odds *= m['Odds']
-            output_txt += f"| {m['Match']} -> {m['Tip']} (@{m['Odds']})\n"
+        ticket_txt = "--- EDGE PRO TICKET ---\n\n"
         
-        if 'gold' in st.session_state:
-            total_odds *= st.session_state['gold']['Odds']
-            output_txt += f"| GOLD_TIP: {st.session_state['gold']['Match']} (@{st.session_state['gold']['Odds']})\n"
-
-        stake = round(bankroll * (0.08 if st.session_state.get('mode') == "SAFE" else 0.02), 2)
+        for m in st.session_state['data']:
+            total_odds *= m['Odds']
+            ticket_txt += f"| {m['Match']} -> {m['Tip']} (@{m['Odds']})\n"
+        
+        # Risk Management Logic
+        mode = st.session_state.get('mode_name', '')
+        stake_pct = 0.08 if "SAFE" in mode else 0.02
+        stake = round(bankroll * stake_pct, 2)
+        win = round(total_odds * stake, 2)
         
         st.markdown(f"""
-            <div style="border: 1px solid #222; padding: 20px; background: rgba(0,0,0,0.5);">
-                <small>COMBINED_ODDS</small><br><b>{total_odds:.2f}</b><br><br>
-                <small>STAKE_ADVISED</small><br><b>€{stake}</b><br><br>
-                <small>POTENTIAL_RETURN</small><br><b style="font-size: 1.5em;">€{round(total_odds * stake, 2)}</b>
+            <div class="summary-box">
+                <p class="sub-text">Total Odds</p>
+                <h2 style="margin:0;">{total_odds:.2f}</h2>
+                <br>
+                <p class="sub-text">Suggested Stake</p>
+                <h3 style="margin:0;">€{stake}</h3>
+                <br>
+                <p class="sub-text">Est. Return</p>
+                <h2 style="margin:0; color:#FFF;">€{win}</h2>
             </div>
         """, unsafe_allow_html=True)
         
-        st.text_area("RAW_DATA", value=output_txt + f"\nTOTAL_ODDS: {total_odds:.2f}", height=150)
-        st.download_button("-> DOWNLOAD_REPORT", data=output_txt, file_name="report_noir.txt")
+        st.divider()
+        st.download_button("DOWNLOAD TICKET", data=ticket_txt, file_name="edge_ticket.txt")
+        st.text_area("COPY FOR NOTES", value=ticket_txt, height=150)
+    else:
+        st.write("Ticket is empty.")
