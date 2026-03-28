@@ -1,119 +1,164 @@
 import streamlit as st
-import requests
 import os
-from datetime import datetime, timedelta
 
 # --- CONFIGURAZIONE CORE ---
-API_KEY = "0b3023a2a74049d0814cba1fea80ce26"
-BASE_URL = "https://api.football-data.org/v4/"
 SAVE_FILE = "gold_storage.txt"
-LEAGUES = {"Serie A": "SA", "Premier League": "PL", "La Liga": "PD", "Bundesliga": "BL1", "Ligue 1": "FL1"}
+st.set_page_config(page_title="EDGE PRO CELESTIAL", layout="wide")
 
-st.set_page_config(page_title="EDGE PRO SHADOW", layout="wide")
-
-# --- UI ENHANCEMENT (GLASSMORPHISM & ANIMATIONS) ---
+# --- BACKGROUND ANIMATO (STELLE BIANCHE) ---
 st.markdown("""
+    <canvas id="canvas"></canvas>
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
     
-    /* Global Reset */
+    #canvas {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        z-index: -1;
+        background: #020202;
+    }
+
     html, body, [class*="st-"] { 
         font-family: 'Inter', sans-serif; 
-        background-color: #020202 !important; 
         color: #FFFFFF !important; 
     }
 
-    /* Background Subtle Glow */
-    .main {
-        background: radial-gradient(circle at top right, #111 0%, #020202 100%);
-    }
-
-    /* Glass Cards */
-    .st-emotion-cache-1r6slb0, .match-card, .strategy-card {
-        background: rgba(15, 15, 15, 0.6) !important;
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.05) !important;
-        border-radius: 12px !important;
-        padding: 20px;
-        transition: all 0.3s ease;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+    /* Glass Cards Premium */
+    .match-card, .strategy-card {
+        background: rgba(10, 10, 10, 0.7) !important;
+        backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 15px !important;
+        padding: 25px;
+        margin-bottom: 15px;
+        transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
     .match-card:hover, .strategy-card:hover {
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        transform: translateY(-2px);
+        border: 1px solid rgba(255, 255, 255, 0.4) !important;
         background: rgba(20, 20, 20, 0.8) !important;
+        box-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
     }
 
-    /* Premium Buttons */
     .stButton>button {
         background: #FFFFFF !important;
-        color: #000000 !important;
+        color: #000 !important;
+        border-radius: 5px !important;
+        font-weight: 700 !important;
         border: none !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        height: 45px;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        height: 40px;
+        transition: 0.3s !important;
     }
 
     .stButton>button:hover {
-        transform: scale(1.02);
-        box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        letter-spacing: 1px;
+        box-shadow: 0 0 15px #FFF;
     }
 
-    /* Secondary/Sidebar Buttons */
-    section[data-testid="stSidebar"] .stButton>button {
-        background: transparent !important;
-        color: #FFFFFF !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    }
-    
-    section[data-testid="stSidebar"] .stButton>button:hover {
-        border: 1px solid #FFFFFF !important;
-        background: rgba(255,255,255,0.05) !important;
-    }
-
-    /* Gold Card Special Style */
     .gold-card {
-        background: linear-gradient(135deg, #FFFFFF 0%, #E0E0E0 100%);
-        color: #000000;
+        background: #FFF;
+        color: #000;
         padding: 15px;
-        border-radius: 10px;
-        font-weight: 700;
-        margin-bottom: 12px;
-        box-shadow: 0 4px 15px rgba(255,255,255,0.1);
+        border-radius: 8px;
+        font-weight: 800;
+        margin-bottom: 15px;
     }
 
-    /* Status Dot Animation */
-    .status-dot {
-        height: 8px;
-        width: 8px;
-        background-color: #FFF;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 8px;
-        animation: pulse 2s infinite;
+    .how-to-play {
+        font-size: 0.8rem;
+        color: #AAA;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255,255,255,0.1);
     }
 
-    @keyframes pulse {
-        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
-        70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
-        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
-    }
-
-    /* Typography */
-    h1, h2, h3 { font-weight: 700; letter-spacing: -1px; }
-    .sub-text { color: #666; font-size: 0.7rem; text-transform: uppercase; font-weight: 600; }
+    .sub-text { color: #555; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
     </style>
+
+    <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    let stars = [];
+    class Star {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.size = Math.random() * 2;
+            this.speed = Math.random() * 0.5 + 0.1;
+        }
+        update() {
+            this.y += this.speed;
+            if (this.y > canvas.height) { this.y = 0; this.x = Math.random() * canvas.width; }
+        }
+        draw() {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    function init() { for (let i = 0; i < 150; i++) { stars.push(new Star()); } }
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        stars.forEach(s => { s.update(); s.draw(); });
+        requestAnimationFrame(animate);
+    }
+    init(); animate();
+    </script>
     """, unsafe_allow_html=True)
 
-# --- FUNZIONI PERSISTENZA ---
-def save_gold(gold_list):
-    with open(SAVE_FILE, "w") as f:
-        for g in gold_list: f.write(f"{g['Match']}|{g['Tip']}|{g['Odds']}\n")
+# --- DATABASE CASINO (10 STRATEGIE CON SPIEGAZIONE) ---
+STRATEGIES_CASINO = {
+    "SAFE": {
+        "SHIELD 1-2": {
+            "desc": "Stabilità estrema contro perdite repentine.",
+            "how": "Metti 4 unità sull'1 e 2 unità sul 2. Copri il 66% della ruota. Se esce l'1 pareggi, se esce il 2 guadagni."
+        },
+        "VOLATILITY MIX": {
+            "desc": "Bilanciamento tra numeri bassi e medi.",
+            "how": "3 unità sull'1, 2 unità sul 2, 1 unità sul 5. Obiettivo: incassi frequenti per durare ore."
+        },
+        "THE GRINDER": {
+            "desc": "Protezione con paracadute sui Bonus.",
+            "how": "5 unità sull'1 e 0.50 unità su ogni Bonus. L'1 paga le giocate dei bonus finché non colpisci il moltiplicatore."
+        },
+        "ANTI-VARIANCE": {
+            "desc": "Sfrutta il segmento più frequente dopo l'1.",
+            "how": "Punta forte sul 2 (80% stake) e dividi il resto sui bonus Cash Hunt e Coin Flip."
+        },
+        "THE TOWER": {
+            "desc": "Copertura alta su numeri rari.",
+            "how": "Dividi lo stake equamente tra 5 e 10. Se esce uno dei due, hai profitto per i successivi 5 giri di bonus."
+        }
+    },
+    "RISKY": {
+        "BONUS HUNTER": {
+            "desc": "Caccia pura ai giochi Bonus.",
+            "how": "Ignora i numeri. Punta 1 unità su Coin Flip, Pachinko, Cash Hunt e Crazy Time. Accetta i giri vuoti."
+        },
+        "CRAZY MAX": {
+            "desc": "Punta tutto sul colpo grosso.",
+            "how": "Punta solo su Crazy Time e Pachinko. Strategia aggressiva per chi cerca moltiplicatori sopra il 100x."
+        },
+        "TOP SLOT SNIPER": {
+            "desc": "Scommessa sui segmenti a vincita alta.",
+            "how": "Punta solo sul 10 e Cash Hunt. Questa combinazione beneficia spesso dei boost della Top Slot."
+        },
+        "COIN FLIP RUSH": {
+            "desc": "Sfrutta il bonus più frequente.",
+            "how": "Punta pesante sul Coin Flip (4 segmenti) e proteggi con una piccola scommessa sul 2."
+        },
+        "ULTRA DOUBLE": {
+            "desc": "Puntata secca sui 4 Bonus Game.",
+            "how": "Stake alto solo sui bonus. Se non esce un bonus entro 10 giri, raddoppia (Attenzione: Molto rischioso)."
+        }
+    }
+}
 
+# --- LOGICA PERSISTENZA ---
 def load_gold():
     lst = []
     if os.path.exists(SAVE_FILE):
@@ -123,71 +168,15 @@ def load_gold():
                 if len(parts) == 3: lst.append({"Match": parts[0], "Tip": parts[1], "Odds": float(parts[2])})
     return lst
 
-# --- DATABASE CASINO ---
-STRATEGIES_CASINO = {
-    "SAFE": {
-        "SHIELD 1-2": "Copre 70%. Focus conservazione capitale.",
-        "VOLATILITY MIX": "Copre 1, 2, 5. Bilanciamento costante.",
-        "THE GRINDER": "Punta su '1' + Tutti i Bonus.",
-        "ANTI-VARIANCE": "80% su '2', 20% su Bonus.",
-        "CONSERVATIVE": "Numeri alti (5-10) pagano i Bonus."
-    },
-    "RISKY": {
-        "BONUS HUNTER": "Solo Bonus Game. Volatilità massima.",
-        "CRAZY MAX": "Focus Crazy Time + Pachinko.",
-        "TOP SLOT AGG.": "Puntata su '10' + Cash Hunt.",
-        "GAMBLER CHOICE": "Solo Coin Flip + Crazy Time.",
-        "ALL-IN BONUS": "Puntata pesante solo su 4 Bonus."
-    }
-}
-
-# --- INITIALIZATION ---
-if 'expert_data' not in st.session_state: st.session_state['expert_data'] = []
 if 'gold_list' not in st.session_state: st.session_state['gold_list'] = load_gold()
 
-# --- SIDEBAR MASTER ---
+# --- SIDEBAR ---
 with st.sidebar:
-    st.markdown("<h1 style='font-size: 1.5rem;'>SYSTEM_V26</h1>", unsafe_allow_html=True)
-    st.markdown("<div class='status-dot'></div> <span style='font-size:0.8rem;'>CORE ACTIVE</span>", unsafe_allow_html=True)
-    st.divider()
-    bankroll = st.number_input("BANKROLL (€)", value=500.0)
+    st.title("EDGE_V27")
+    bankroll = st.number_input("BANKROLL (€)", value=200.0)
     module = st.radio("SELECT ENGINE", ["SPORTS_BETTING", "CASINO_STRATEGIES"])
-    
     st.divider()
-    if module == "SPORTS_BETTING":
-        st.subheader("STRATEGIES")
-        if st.button("LOAD SAFE ELITE"):
-            st.session_state['expert_data'] = [
-                {"Match": "Juventus v Fiorentina", "Tip": "1X + U3.5", "Odds": 1.50, "Lega": "SERIE A"},
-                {"Match": "Liverpool v Everton", "Tip": "Over 2.5", "Odds": 1.62, "Lega": "PREMIER"},
-                {"Match": "Real Madrid v Villarreal", "Tip": "Segno 1", "Odds": 1.45, "Lega": "LA LIGA"},
-                {"Match": "Leverkusen v Leipzig", "Tip": "Goal", "Odds": 1.55, "Lega": "BUNDESLIGA"}
-            ]
-            st.session_state['mode_name'] = "SAFE"
-        
-        if st.button("LOAD TARGET 100"):
-            st.session_state['expert_data'] = [
-                {"Match": "Bologna v Inter", "Tip": "X", "Odds": 3.60, "Lega": "SERIE A"},
-                {"Match": "Newcastle v Man Utd", "Tip": "2 + Goal", "Odds": 4.80, "Lega": "PREMIER"},
-                {"Match": "Bilbao v Atl. Madrid", "Tip": "1 + U2.5", "Odds": 4.20, "Lega": "LA LIGA"},
-                {"Match": "Dortmund v Stuttgart", "Tip": "O3.5 + Goal", "Odds": 3.20, "Lega": "BUNDESLIGA"},
-                {"Match": "Marseille v Nice", "Tip": "X + U2.5", "Odds": 3.50, "Lega": "LIGUE 1"}
-            ]
-            st.session_state['mode_name'] = "RISK"
-            
-        st.divider()
-        st.subheader("GOLD TIP")
-        g_m = st.text_input("MATCH")
-        g_t = st.text_input("TIP")
-        g_o = st.number_input("ODDS", value=1.50)
-        if st.button("SAVE GOLD"):
-            if g_m and g_t:
-                st.session_state['gold_list'].append({"Match": g_m, "Tip": g_t, "Odds": g_o})
-                save_gold(st.session_state['gold_list'])
-                st.rerun()
-    
-    if st.button("RESET ALL DATA"):
-        if os.path.exists(SAVE_FILE): os.remove(SAVE_FILE)
+    if st.button("RESET ALL"):
         st.session_state.clear()
         st.rerun()
 
@@ -196,56 +185,38 @@ col_main, col_ticket = st.columns([2, 1], gap="large")
 
 if module == "SPORTS_BETTING":
     with col_main:
-        st.markdown("<p class='sub-text'>Real-Time Market Analysis</p>", unsafe_allow_html=True)
-        st.title("SPORTS_ANALYSIS")
-        
+        st.title("/ SPORTS_ANALYSIS")
         if st.session_state['gold_list']:
             for g in st.session_state['gold_list']:
                 st.markdown(f"<div class='gold-card'>{g['Match']} // {g['Tip']} @{g['Odds']}</div>", unsafe_allow_html=True)
+        st.info("Load expert strategies or add Gold Tips to see analysis.")
 
-        if st.session_state['expert_data']:
-            for m in st.session_state['expert_data']:
-                st.markdown(f"""
-                    <div class="match-card">
-                        <span class="sub-text">{m['Lega']}</span><br>
-                        <b style="font-size:1.1rem;">{m['Match']}</b><br>
-                        <span style="opacity:0.8;">{m['Tip']} // @{m['Odds']}</span>
-                    </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.info("No strategies loaded. Use the sidebar to initiate.")
-
-    with col_ticket:
-        st.subheader("TICKET_SUMMARY")
-        combined = st.session_state['expert_data'] + st.session_state['gold_list']
-        if combined:
-            total_odds = 1.0
-            for m in combined: total_odds *= m['Odds']
-            stake = round(bankroll * (0.08 if st.session_state.get('mode_name')=="SAFE" else 0.02), 2)
-            
-            st.markdown(f"""
-                <div class='match-card' style='background:rgba(255,255,255,0.03) !important;'>
-                    <p class='sub-text'>Combined Odds</p><h2>{total_odds:.2f}</h2>
-                    <p class='sub-text'>Stake Advisable</p><h3>€{stake}</h3>
-                    <p class='sub-text'>Est. Return</p><h2 style="color:#FFF;">€{round(total_odds * stake, 2)}</h2>
-                </div>
-            """, unsafe_allow_html=True)
-            st.download_button("EXPORT TICKET", "Ticket Data Here", file_name="ticket.txt")
-        else:
-            st.write("Ticket empty.")
-
-else: # MODULE CASINO
+else: # MODULO CASINO
     with col_main:
-        st.markdown("<p class='sub-text'>Probability Engines</p>", unsafe_allow_html=True)
-        st.title("CASINO_STRATEGIES")
+        st.title("/ CASINO_ENGINE")
+        st.markdown("<p class='sub-text'>Crazy Time Mathematical Distribution</p>", unsafe_allow_html=True)
+        
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("### // SAFE")
-            for name, desc in STRATEGIES_CASINO["SAFE"].items():
-                st.markdown(f"<div class='strategy-card'><b>{name}</b><br><small style='color:#888;'>{desc}</small></div>", unsafe_allow_html=True)
-                if st.button(f"SELECT {name}"): st.toast(f"Stake: €{round(bankroll*0.05,2)}")
+            st.markdown("### 🛡️ SAFE MODES")
+            for name, data in STRATEGIES_CASINO["SAFE"].items():
+                st.markdown(f"""
+                    <div class='strategy-card'>
+                        <b style='font-size:1.1rem;'>{name}</b><br>
+                        <span style='color:#FFF; opacity:0.8;'>{data['desc']}</span>
+                        <div class='how-to-play'><b>COME GIOCARE:</b><br>{data['how']}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                if st.button(f"SELECT {name}"): st.toast(f"Stake suggerito: €{round(bankroll*0.05,2)}")
+
         with c2:
-            st.markdown("### // RISKY")
-            for name, desc in STRATEGIES_CASINO["RISKY"].items():
-                st.markdown(f"<div class='strategy-card' style='border-left:3px solid #666;'><b>{name}</b><br><small style='color:#888;'>{desc}</small></div>", unsafe_allow_html=True)
-                if st.button(f"SELECT {name}", key=name+"_btn"): st.toast(f"Stake: €{round(bankroll*0.02,2)}")
+            st.markdown("### 🔥 RISKY MODES")
+            for name, data in STRATEGIES_CASINO["RISKY"].items():
+                st.markdown(f"""
+                    <div class='strategy-card'>
+                        <b style='font-size:1.1rem;'>{name}</b><br>
+                        <span style='color:#FFF; opacity:0.8;'>{data['desc']}</span>
+                        <div class='how-to-play'><b>COME GIOCARE:</b><br>{data['how']}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                if st.button(f"SELECT {name}", key=name+"_btn"): st.toast(f"Stake suggerito: €{round(bankroll*0.02,2)}")
